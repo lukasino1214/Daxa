@@ -1764,7 +1764,7 @@ namespace daxa
             // clang-format off
             "-warnings-disable", "39001",
             "-O0",
-            use_debug_info ? "g2" : ""
+            use_debug_info ? "-g2" : ""
             // clang-format on
         };
         slangRequest->processCommandLineArguments(cmd_args.data(), static_cast<int>(cmd_args.size()));
