@@ -1750,6 +1750,7 @@ namespace daxa
 
         auto name = std::string{"test"};
         auto error_message_prefix = std::string("SLANG [") + name + "] ";
+        bool const use_debug_info = shader_info.enable_debug_info.value_or(false);
 
         Slang::ComPtr<SlangCompileRequest> slangRequest = nullptr;
         session->createCompileRequest(slangRequest.writeRef());
@@ -1757,12 +1758,13 @@ namespace daxa
         {
             return Result<std::vector<u32>>(std::string_view{"internal error: session->createCompileRequest(&slangRequest) returned nullptr"});
         }
-        std::array<char const *, 3> cmd_args = {
+        std::array<char const *, 4> cmd_args = {
             // https://github.com/shader-slang/slang/issues/3532
             // Disables warning for aliasing bindings.
             // clang-format off
             "-warnings-disable", "39001",
             "-O0",
+            use_debug_info ? "g3" : ""
             // clang-format on
         };
         slangRequest->processCommandLineArguments(cmd_args.data(), static_cast<int>(cmd_args.size()));
