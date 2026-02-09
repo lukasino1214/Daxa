@@ -89,11 +89,11 @@ namespace daxa
         physical_device_16bit_storage_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES;
         chain = static_cast<void *>(&physical_device_16bit_storage_features);
 
-        if (extensions.extensions_present[extensions.physical_device_robustness2_ext])
+        if (extensions.extensions_present[extensions.physical_device_robustness2_khr])
         {
-            physical_device_robustness2_features_ext.pNext = chain;
-            physical_device_robustness2_features_ext.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT;
-            chain = static_cast<void *>(&physical_device_robustness2_features_ext);
+            physical_device_robustness2_features_khr.pNext = chain;
+            physical_device_robustness2_features_khr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_KHR;
+            chain = static_cast<void *>(&physical_device_robustness2_features_khr);
         }
 
         physical_device_vulkan_memory_model_features.pNext = chain;
@@ -146,11 +146,11 @@ namespace daxa
             chain = static_cast<void *>(&physical_device_ray_tracing_position_fetch_features_khr);
         }
 
-        if (extensions.extensions_present[extensions.physical_device_ray_tracing_invocation_reorder_nv])
+        if (extensions.extensions_present[extensions.physical_device_ray_tracing_invocation_reorder_ext])
         {
-            physical_device_ray_tracing_invocation_reorder_features_nv.pNext = chain;
-            physical_device_ray_tracing_invocation_reorder_features_nv.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_NV;
-            chain = static_cast<void *>(&physical_device_ray_tracing_invocation_reorder_features_nv);
+            physical_device_ray_tracing_invocation_reorder_features_ext.pNext = chain;
+            physical_device_ray_tracing_invocation_reorder_features_ext.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_EXT;
+            chain = static_cast<void *>(&physical_device_ray_tracing_invocation_reorder_features_ext);
         }
 
         if (extensions.extensions_present[extensions.physical_device_shader_atomic_float_ext])
@@ -280,7 +280,7 @@ namespace daxa
         offsetof(PhysicalDeviceFeaturesStruct, physical_device_acceleration_structure_features_khr.descriptorBindingAccelerationStructureUpdateAfterBind),
         offsetof(PhysicalDeviceFeaturesStruct, physical_device_ray_query_features_khr.rayQuery),
 
-        offsetof(PhysicalDeviceFeaturesStruct, physical_device_ray_tracing_invocation_reorder_features_nv.rayTracingInvocationReorder),
+        offsetof(PhysicalDeviceFeaturesStruct, physical_device_ray_tracing_invocation_reorder_features_ext.rayTracingInvocationReorder),
     };
 
     constexpr static std::array DAXA_IMPLICIT_FEATURE_FLAG_RAY_TRACING_POSITION_FETCH_VK_FEATURES = std::array{
@@ -388,8 +388,8 @@ namespace daxa
     };
 
     constexpr static std::array PHYSICAL_DEVICE_ROBUSTNESS_2_EXT_VK_FEATURES = std::array{
-        offsetof(PhysicalDeviceFeaturesStruct, physical_device_robustness2_features_ext.robustBufferAccess2),
-        offsetof(PhysicalDeviceFeaturesStruct, physical_device_robustness2_features_ext.robustImageAccess2),
+        offsetof(PhysicalDeviceFeaturesStruct, physical_device_robustness2_features_khr.robustBufferAccess2),
+        offsetof(PhysicalDeviceFeaturesStruct, physical_device_robustness2_features_khr.robustImageAccess2),
         offsetof(PhysicalDeviceFeaturesStruct, physical_device_features_2.features.robustBufferAccess),
     };
 

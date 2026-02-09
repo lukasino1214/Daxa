@@ -54,10 +54,10 @@ namespace daxa
             physical_device_ray_query_khr,
             physical_device_ray_tracing_position_fetch_khr,
             physical_device_extended_dynamic_state_3_ext,
-            physical_device_robustness2_ext,
+            physical_device_robustness2_khr,
             physical_device_shader_image_atomic_int64_ext,
             physical_device_mesh_shader_ext,
-            physical_device_ray_tracing_invocation_reorder_nv,
+            physical_device_ray_tracing_invocation_reorder_ext,
             physical_device_shader_atomic_float_ext,
             physical_device_shader_clock_khr,
             physical_device_host_image_copy_ext,
@@ -76,10 +76,10 @@ namespace daxa
             VK_KHR_RAY_QUERY_EXTENSION_NAME,
             VK_KHR_RAY_TRACING_POSITION_FETCH_EXTENSION_NAME,
             VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
-            VK_EXT_ROBUSTNESS_2_EXTENSION_NAME,
+            VK_KHR_ROBUSTNESS_2_EXTENSION_NAME,
             VK_EXT_SHADER_IMAGE_ATOMIC_INT64_EXTENSION_NAME,
             VK_EXT_MESH_SHADER_EXTENSION_NAME,
-            VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME,
+            VK_EXT_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME,
             VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME,
             VK_KHR_SHADER_CLOCK_EXTENSION_NAME,
             VK_EXT_HOST_IMAGE_COPY_EXTENSION_NAME,
@@ -108,7 +108,7 @@ namespace daxa
         VkPhysicalDeviceShaderFloat16Int8Features physical_device_shader_float16_int8_features = {};
         VkPhysicalDevice8BitStorageFeatures physical_device_8bit_storage_features = {};
         VkPhysicalDevice16BitStorageFeatures physical_device_16bit_storage_features = {};
-        VkPhysicalDeviceRobustness2FeaturesEXT physical_device_robustness2_features_ext = {};
+        VkPhysicalDeviceRobustness2FeaturesKHR physical_device_robustness2_features_khr = {};
         VkPhysicalDeviceVulkanMemoryModelFeatures physical_device_vulkan_memory_model_features = {};
         VkPhysicalDeviceShaderAtomicInt64Features physical_device_shader_atomic_int64_features = {};
         VkPhysicalDeviceShaderImageAtomicInt64FeaturesEXT physical_device_shader_image_atomic_int64_features_ext = {};
@@ -117,7 +117,7 @@ namespace daxa
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR physical_device_ray_tracing_pipeline_features_khr = {};
         VkPhysicalDeviceRayQueryFeaturesKHR physical_device_ray_query_features_khr = {};
         VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR physical_device_ray_tracing_position_fetch_features_khr = {};
-        VkPhysicalDeviceRayTracingInvocationReorderFeaturesNV physical_device_ray_tracing_invocation_reorder_features_nv = {};
+        VkPhysicalDeviceRayTracingInvocationReorderFeaturesEXT physical_device_ray_tracing_invocation_reorder_features_ext = {};
         VkPhysicalDeviceShaderAtomicFloatFeaturesEXT physical_device_shader_atomic_float_features_ext = {};
         VkPhysicalDeviceShaderClockFeaturesKHR physical_device_shader_clock_features_khr = {};
         VkPhysicalDeviceHostImageCopyFeaturesEXT physical_device_host_image_copy_features_ext = {};
