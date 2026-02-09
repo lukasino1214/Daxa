@@ -623,8 +623,8 @@ namespace daxa
                 .source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT,
                 .sourceData = VkDescriptorMappingSourceDataEXT{
                     .constantOffset = VkDescriptorMappingSourceConstantOffsetEXT{
-                        .heapOffset = 0,
-                        .heapArrayStride = 0,
+                        .heapOffset = static_cast<u32>(heap_layout.sampler_offset),
+                        .heapArrayStride = static_cast<u32>(heap_layout.sampler_stride),
                         .pEmbeddedSampler = nullptr,
                         .samplerHeapOffset = static_cast<u32>(heap_layout.sampler_offset),
                         .samplerHeapArrayStride = static_cast<u32>(heap_layout.sampler_stride),
