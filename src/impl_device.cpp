@@ -282,6 +282,7 @@ auto create_buffer_helper(daxa_Device self, daxa_BufferInfo const * info, daxa_B
         self->vkSetDebugUtilsObjectNameEXT(self->vk_device, &buffer_name_info);
     }
 
+    if((self->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
@@ -290,6 +291,16 @@ auto create_buffer_helper(daxa_Device self, daxa_BufferInfo const * info, daxa_B
             self->gpu_sro_table.vk_descriptor_set, hot_data.vk_buffer,
             0,
             static_cast<VkDeviceSize>(ret.info.size),
+            id.index);
+    }
+    else
+    {
+        write_descriptor_heap_buffer(
+            self->vk_device, 
+            self->vkWriteResourceDescriptorsEXT, 
+            self->gpu_sro_table,
+            hot_data.device_address, 
+            info->size, 
             id.index);
     }
 
@@ -456,6 +467,7 @@ auto create_image_helper(daxa_Device self, daxa_ImageInfo const * info, daxa_Ima
         self->vkSetDebugUtilsObjectNameEXT(self->vk_device, &swapchain_image_view_name_info);
     }
 
+    if((self->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
@@ -463,6 +475,16 @@ auto create_image_helper(daxa_Device self, daxa_ImageInfo const * info, daxa_Ima
             self->vk_device,
             self->gpu_sro_table.vk_descriptor_set,
             ret.view_slot.vk_image_view,
+            std::bit_cast<ImageUsageFlags>(ret.info.usage),
+            id.index);
+    }
+    else
+    {
+        write_descriptor_heap_image(
+            self->vk_device,
+            self->vkWriteResourceDescriptorsEXT,
+            self->gpu_sro_table,
+            vk_image_view_create_info,
             std::bit_cast<ImageUsageFlags>(ret.info.usage),
             id.index);
     }
@@ -578,13 +600,25 @@ auto create_acceleration_structure_helper(
 
     if (vk_as_type == VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR)
     {
-        // Does not need external sync given we use update after bind.
-        // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
-        write_descriptor_set_acceleration_structure(
-            self->vk_device,
-            self->gpu_sro_table.vk_descriptor_set,
-            hot_data.vk_acceleration_structure,
-            id.index);
+        if((self->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
+        {
+            // Does not need external sync given we use update after bind.
+            // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
+            write_descriptor_set_acceleration_structure(
+                self->vk_device,
+                self->gpu_sro_table.vk_descriptor_set,
+                hot_data.vk_acceleration_structure,
+                id.index);
+        }
+        else
+        {
+            write_descriptor_heap_acceleration_structure(
+                self->vk_device, 
+                self->vkWriteResourceDescriptorsEXT, 
+                self->gpu_sro_table, 
+                hot_data.device_address, 
+                id.index);
+        }
     }
 
     *out_id = std::bit_cast<typename std::remove_pointer<decltype(out_id)>::type>(id);
@@ -1105,6 +1139,7 @@ auto daxa_dvc_create_image_view(daxa_Device self, daxa_ImageViewInfo const * inf
         self->vkSetDebugUtilsObjectNameEXT(self->vk_device, &name_info);
     }
 
+    if((self->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
@@ -1114,8 +1149,18 @@ auto daxa_dvc_create_image_view(daxa_Device self, daxa_ImageViewInfo const * inf
             ret.vk_image_view,
             std::bit_cast<ImageUsageFlags>(parent_image_slot.info.usage),
             id.index);
-        *out_id = std::bit_cast<daxa_ImageViewId>(id);
     }
+    else
+    {
+        write_descriptor_heap_image(
+            self->vk_device,
+            self->vkWriteResourceDescriptorsEXT,
+            self->gpu_sro_table,
+            vk_image_view_create_info,
+            std::bit_cast<ImageUsageFlags>(parent_image_slot.info.usage),
+            id.index);
+    }
+    *out_id = std::bit_cast<daxa_ImageViewId>(id);
     return result;
 }
 
@@ -1192,10 +1237,15 @@ auto daxa_dvc_create_sampler(daxa_Device self, daxa_SamplerInfo const * info, da
         self->vkSetDebugUtilsObjectNameEXT(self->vk_device, &sampler_name_info);
     }
 
+    if((self->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
         write_descriptor_set_sampler(self->vk_device, self->gpu_sro_table.vk_descriptor_set, ret.vk_sampler, id.index);
+    }
+    else
+    {
+        write_descriptor_heap_sampler(self->vk_device, self->vkWriteSamplerDescriptorsEXT, self->gpu_sro_table, vk_sampler_create_info, id.index);
     }
     *out_id = std::bit_cast<daxa_SamplerId>(id);
     return result;
@@ -2020,6 +2070,16 @@ auto daxa_ImplDevice::create_2(daxa_Instance instance, daxa_DeviceInfo2 const & 
             self->vkCopyMemoryToImageEXT = r_cast<PFN_vkCopyMemoryToImageEXT>(vkGetDeviceProcAddr(self->vk_device, "vkCopyMemoryToImageEXT"));
             self->vkCopyImageToMemoryEXT = r_cast<PFN_vkCopyImageToMemoryEXT>(vkGetDeviceProcAddr(self->vk_device, "vkCopyImageToMemoryEXT"));
         }
+
+        if (properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP)
+        {
+            self->vkWriteSamplerDescriptorsEXT = r_cast<PFN_vkWriteSamplerDescriptorsEXT>(vkGetDeviceProcAddr(self->vk_device, "vkWriteSamplerDescriptorsEXT"));
+            self->vkWriteResourceDescriptorsEXT = r_cast<PFN_vkWriteResourceDescriptorsEXT>(vkGetDeviceProcAddr(self->vk_device, "vkWriteResourceDescriptorsEXT"));
+            self->vkCmdBindSamplerHeapEXT = r_cast<PFN_vkCmdBindSamplerHeapEXT>(vkGetDeviceProcAddr(self->vk_device, "vkCmdBindSamplerHeapEXT"));
+            self->vkCmdBindResourceHeapEXT = r_cast<PFN_vkCmdBindResourceHeapEXT>(vkGetDeviceProcAddr(self->vk_device, "vkCmdBindResourceHeapEXT"));
+            self->vkCmdPushDataEXT = r_cast<PFN_vkCmdPushDataEXT>(vkGetDeviceProcAddr(self->vk_device, "vkCmdPushDataEXT"));
+            self->vkGetPhysicalDeviceDescriptorSizeEXT = r_cast<PFN_vkGetPhysicalDeviceDescriptorSizeEXT>(vkGetInstanceProcAddr(self->instance->vk_instance, "vkGetPhysicalDeviceDescriptorSizeEXT"));
+        }
     }
 
     VkCommandPool init_cmd_pool = {};
@@ -2182,6 +2242,13 @@ auto daxa_ImplDevice::create_2(daxa_Instance instance, daxa_DeviceInfo2 const & 
 
         result = static_cast<daxa_Result>(vmaCreateBuffer(self->vma_allocator, &null_buffer_buffer_create_info, &null_buffer_allocation_create_info, &self->vk_null_buffer, &self->vk_null_buffer_vma_allocation, &vma_allocation_info));
         _DAXA_RETURN_IF_ERROR(result, DAXA_RESULT_FAILED_TO_CREATE_NULL_BUFFER)
+        VkBufferDeviceAddressInfo const vk_buffer_device_address_info{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+            .pNext = nullptr,
+            .buffer = self->vk_null_buffer,
+        };
+
+        self->vk_null_buffer_device_address = vkGetBufferDeviceAddress(self->vk_device, &vk_buffer_device_address_info);
 
         if ((self->instance->info.flags & InstanceFlagBits::DEBUG_UTILS) != InstanceFlagBits::NONE)
         {
@@ -2237,7 +2304,7 @@ auto daxa_ImplDevice::create_2(daxa_Instance instance, daxa_DeviceInfo2 const & 
             self->vkSetDebugUtilsObjectNameEXT(self->vk_device, &image_name_info);
         }
 
-        VkImageViewCreateInfo const vk_image_view_create_info{
+        self->vk_null_image_view_create_info = VkImageViewCreateInfo {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .pNext = nullptr,
             .flags = {},
@@ -2259,7 +2326,7 @@ auto daxa_ImplDevice::create_2(daxa_Instance instance, daxa_DeviceInfo2 const & 
             },
         };
 
-        result = static_cast<daxa_Result>(vkCreateImageView(self->vk_device, &vk_image_view_create_info, nullptr, &self->vk_null_image_view));
+        result = static_cast<daxa_Result>(vkCreateImageView(self->vk_device, &self->vk_null_image_view_create_info, nullptr, &self->vk_null_image_view));
         _DAXA_RETURN_IF_ERROR(result, DAXA_RESULT_FAILED_TO_CREATE_NULL_IMAGE_VIEW)
 
         if ((self->instance->info.flags & InstanceFlagBits::DEBUG_UTILS) != InstanceFlagBits::NONE)
@@ -2315,9 +2382,15 @@ auto daxa_ImplDevice::create_2(daxa_Instance instance, daxa_DeviceInfo2 const & 
         vk_image_mem_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         vkCmdPipelineBarrier(init_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {}, {}, {}, {}, {}, 1, &vk_image_mem_barrier);
 
-        VkSamplerCreateInfo const vk_sampler_create_info{
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        self->vk_null_sampler_reduction_mode_create_info = VkSamplerReductionModeCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
             .pNext = nullptr,
+            .reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE,
+        };
+
+        self->vk_null_sampler_create_info = VkSamplerCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .pNext = r_cast<void *>(&self->vk_null_sampler_reduction_mode_create_info),
             .flags = {},
             .magFilter = VkFilter::VK_FILTER_LINEAR,
             .minFilter = VkFilter::VK_FILTER_LINEAR,
@@ -2335,7 +2408,7 @@ auto daxa_ImplDevice::create_2(daxa_Instance instance, daxa_DeviceInfo2 const & 
             .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
             .unnormalizedCoordinates = VK_FALSE,
         };
-        result = static_cast<daxa_Result>(vkCreateSampler(self->vk_device, &vk_sampler_create_info, nullptr, &self->vk_null_sampler));
+        result = static_cast<daxa_Result>(vkCreateSampler(self->vk_device, &self->vk_null_sampler_create_info, nullptr, &self->vk_null_sampler));
         _DAXA_RETURN_IF_ERROR(result, DAXA_RESULT_FAILED_TO_CREATE_NULL_SAMPLER)
 
         if ((self->instance->info.flags & InstanceFlagBits::DEBUG_UTILS) != InstanceFlagBits::NONE)
@@ -2441,8 +2514,12 @@ auto daxa_ImplDevice::create_2(daxa_Instance instance, daxa_DeviceInfo2 const & 
         self->info.max_allowed_images,
         self->info.max_allowed_samplers,
         (properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_BASIC_RAY_TRACING) ? self->info.max_allowed_acceleration_structures : (~0u),
+        self->vk_physical_device,
         self->vk_device,
         self->buffer_device_address_buffer,
+        self->vma_allocator,
+        *r_cast<Optional<DescriptorHeapProperties>*>(&self->properties.descriptor_heap_properties),
+        self->vkGetPhysicalDeviceDescriptorSizeEXT,
         self->vkSetDebugUtilsObjectNameEXT);
     _DAXA_RETURN_IF_ERROR(result, DAXA_RESULT_FAILED_TO_SUBMIT_DEVICE_INIT_COMMANDS)
 
@@ -2601,10 +2678,21 @@ auto daxa_ImplDevice::new_swapchain_image(VkImage swapchain_image, VkFormat form
         this->vkSetDebugUtilsObjectNameEXT(this->vk_device, &swapchain_image_view_name_info);
     }
 
+    if((this->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
         write_descriptor_set_image(this->vk_device, this->gpu_sro_table.vk_descriptor_set, ret.view_slot.vk_image_view, usage, id.index);
+    }
+    else
+    {
+        write_descriptor_heap_image(
+            this->vk_device,
+            this->vkWriteResourceDescriptorsEXT,
+            this->gpu_sro_table,
+            view_ci,
+            std::bit_cast<ImageUsageFlags>(ret.info.usage),
+            id.index);
     }
 
     *out = ImageId{id};
@@ -2618,10 +2706,21 @@ void daxa_ImplDevice::cleanup_buffer(BufferId id)
     ImplBufferSlot const & buffer_slot = this->gpu_sro_table.buffer_slots.unsafe_get(gid);
     ImplBufferSlot::HotData const & hot_data = this->gpu_sro_table.buffer_slots.unsafe_get_hot(gid);
     this->buffer_device_address_buffer_host_ptr[gid.index] = 0;
+    if((this->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
         write_descriptor_set_buffer(this->vk_device, this->gpu_sro_table.vk_descriptor_set, this->vk_null_buffer, 0, VK_WHOLE_SIZE, gid.index);
+    }
+    else
+    {
+        write_descriptor_heap_buffer(
+            this->vk_device, 
+            this->vkWriteResourceDescriptorsEXT, 
+            this->gpu_sro_table,
+            vk_null_buffer_device_address, 
+            sizeof(u8) * 4, 
+            id.index);
     }
     if (buffer_slot.opt_memory_block != nullptr)
     {
@@ -2638,6 +2737,7 @@ void daxa_ImplDevice::cleanup_image(ImageId id)
 {
     auto gid = std::bit_cast<GPUResourceId>(id);
     ImplImageSlot const & image_slot = gpu_sro_table.image_slots.unsafe_get(gid);
+    if((this->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
@@ -2647,6 +2747,16 @@ void daxa_ImplDevice::cleanup_image(ImageId id)
             this->vk_null_image_view,
             std::bit_cast<ImageUsageFlags>(image_slot.info.usage),
             gid.index);
+    }
+    else
+    {
+        write_descriptor_heap_image(
+            this->vk_device,
+            this->vkWriteResourceDescriptorsEXT,
+            this->gpu_sro_table,
+            this->vk_null_image_view_create_info,
+            std::bit_cast<ImageUsageFlags>(image_slot.info.usage),
+            id.index);
     }
     vkDestroyImageView(vk_device, image_slot.view_slot.vk_image_view, nullptr);
     if (image_slot.swapchain_image_index == NOT_OWNED_BY_SWAPCHAIN)
@@ -2667,10 +2777,15 @@ void daxa_ImplDevice::cleanup_image_view(ImageViewId id)
 {
     DAXA_DBG_ASSERT_TRUE_M(gpu_sro_table.image_slots.unsafe_get(std::bit_cast<GPUResourceId>(id)).vk_image == VK_NULL_HANDLE, "can not destroy default image view of image");
     ImplImageViewSlot const & image_slot = gpu_sro_table.image_slots.unsafe_get(std::bit_cast<GPUResourceId>(id)).view_slot;
+    if((this->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
         write_descriptor_set_image(this->vk_device, this->gpu_sro_table.vk_descriptor_set, this->vk_null_image_view, ImageUsageFlagBits::SHADER_STORAGE | ImageUsageFlagBits::SHADER_SAMPLED, std::bit_cast<daxa::ImageViewId>(id).index);
+    }
+    else
+    {
+        write_descriptor_heap_image(this->vk_device, this->vkWriteResourceDescriptorsEXT, this->gpu_sro_table, this->vk_null_image_view_create_info, ImageUsageFlagBits::SHADER_STORAGE | ImageUsageFlagBits::SHADER_SAMPLED, std::bit_cast<daxa::ImageViewId>(id).index);
     }
     vkDestroyImageView(vk_device, image_slot.vk_image_view, nullptr);
     gpu_sro_table.image_slots.unsafe_destroy_zombie_slot(std::bit_cast<GPUResourceId>(id));
@@ -2679,10 +2794,15 @@ void daxa_ImplDevice::cleanup_image_view(ImageViewId id)
 void daxa_ImplDevice::cleanup_sampler(SamplerId id)
 {
     ImplSamplerSlot const & sampler_slot = this->gpu_sro_table.sampler_slots.unsafe_get(std::bit_cast<GPUResourceId>(id));
+    if((this->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
         // Does not need external sync given we use update after bind.
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html
         write_descriptor_set_sampler(this->vk_device, this->gpu_sro_table.vk_descriptor_set, this->vk_null_sampler, std::bit_cast<GPUResourceId>(id).index);
+    }
+    else
+    {
+        write_descriptor_heap_sampler(this->vk_device, this->vkWriteSamplerDescriptorsEXT, this->gpu_sro_table, this->vk_null_sampler_create_info, std::bit_cast<GPUResourceId>(id).index);
     }
     vkDestroySampler(this->vk_device, sampler_slot.vk_sampler, nullptr);
     gpu_sro_table.sampler_slots.unsafe_destroy_zombie_slot(std::bit_cast<GPUResourceId>(id));
@@ -2773,7 +2893,7 @@ void daxa_ImplDevice::zero_ref_callback(ImplHandle const * handle)
     DAXA_DBG_ASSERT_TRUE_M(result == DAXA_RESULT_SUCCESS, "failed to wait idle");
     self->commands.cleanup(self->vk_device);
     vmaDestroyBuffer(self->vma_allocator, self->buffer_device_address_buffer, self->buffer_device_address_buffer_allocation);
-    self->gpu_sro_table.cleanup(self->vk_device);
+    self->gpu_sro_table.cleanup(self->vk_device, self->vma_allocator);
     vmaDestroyImage(self->vma_allocator, self->vk_null_image, self->vk_null_image_vma_allocation);
     vmaDestroyBuffer(self->vma_allocator, self->vk_null_buffer, self->vk_null_buffer_vma_allocation);
     vmaDestroyAllocator(self->vma_allocator);

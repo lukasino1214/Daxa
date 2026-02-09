@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.21)
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/warnings.cmake")
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(DAXA_ENABLE_UTILS_TASK_GRAPH)
     set(DAXA_ENABLE_UTILS_MEM true)
 endif()
@@ -157,7 +159,7 @@ if(DAXA_ENABLE_UTILS_TASK_GRAPH)
 endif()
 
 target_link_libraries(daxa
-    PRIVATE
+    PUBLIC
     GPUOpen::VulkanMemoryAllocator
     Vulkan::Vulkan
 )

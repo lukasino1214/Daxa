@@ -172,6 +172,30 @@ typedef struct
     daxa_Bool8 identical_memory_type_requirements;
 } daxa_HostImageCopyProperties;
 
+// Is NOT ABI Compatible with VkPhysicalDeviceDescriptorHeapPropertiesEXT!
+typedef struct
+{
+    uint64_t sampler_heap_alignment;
+    uint64_t resource_heap_alignment;
+    uint64_t max_sampler_heap_size;
+    uint64_t max_resource_heap_size;
+    uint64_t min_sampler_heap_reserved_range;
+    uint64_t min_sampler_heap_reserved_range_with_embedded;
+    uint64_t min_resource_heap_reserved_range;
+    uint64_t sampler_descriptor_size;
+    uint64_t image_descriptor_size;
+    uint64_t buffer_descriptor_size;
+    uint64_t sampler_descriptor_alignment;
+    uint64_t image_descriptor_alignment;
+    uint64_t buffer_descriptor_alignment;
+    uint64_t max_push_data_size;
+    size_t image_capture_replay_opaque_data_size;
+    uint32_t max_descriptor_heap_embedded_samplers;
+    uint32_t sampler_ycbcr_conversion_count;
+    daxa_Bool8 sparse_descriptor_heaps;
+    daxa_Bool8 protected_descriptor_heaps;
+} daxa_DescriptorHeapProperties;
+
 // Is NOT ABI Compatible with VkPhysicalDeviceMeshShaderPropertiesEXT!
 typedef struct
 {
@@ -282,6 +306,7 @@ typedef enum
     DAXA_IMPLICIT_FEATURE_FLAG_SHADER_CLOCK = 0x1 << 14,
     DAXA_IMPLICIT_FEATURE_FLAG_HOST_IMAGE_COPY = 0x1 << 15,
     DAXA_IMPLICIT_FEATURE_FLAG_LINE_RASTERIZATION = 0x1 << 16,
+    DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP = 0x1 << 17,
 } daxa_DeviceImplicitFeatureFlagBits;
 
 typedef daxa_DeviceImplicitFeatureFlagBits daxa_ImplicitFeatureFlags;
@@ -301,6 +326,7 @@ typedef struct
     daxa_Optional(daxa_AccelerationStructureProperties) acceleration_structure_properties;
     daxa_Optional(daxa_RayTracingInvocationReorderProperties) ray_tracing_invocation_reorder_properties;
     daxa_Optional(daxa_HostImageCopyProperties) host_image_copy_properties;
+    daxa_Optional(daxa_DescriptorHeapProperties) descriptor_heap_properties;
     daxa_u32 required_subgroup_size_stages;
     daxa_u32 compute_queue_count;
     daxa_u32 transfer_queue_count;
@@ -762,7 +788,7 @@ daxa_dvc_get_vk_device(daxa_Device device);
 DAXA_EXPORT VkPhysicalDevice
 daxa_dvc_get_vk_physical_device(daxa_Device device);
 DAXA_EXPORT daxa_Result
-daxa_dvc_get_vk_queue(daxa_Device self, daxa_Queue queue, VkQueue* vk_queue, uint32_t* vk_queue_family_index);
+daxa_dvc_get_vk_queue(daxa_Device self, daxa_Queue queue, VkQueue * vk_queue, uint32_t * vk_queue_family_index);
 
 DAXA_EXPORT DAXA_NO_DISCARD daxa_Result
 daxa_dvc_queue_wait_idle(daxa_Device device, daxa_Queue queue);

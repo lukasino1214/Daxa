@@ -94,7 +94,7 @@ if (DAXA_ENABLE_UTILS_IMGUI AND NOT TARGET imgui::imgui AND NOT TARGET implot::i
 endif()
 
 if (DAXA_ENABLE_UTILS_PIPELINE_MANAGER_SLANG AND NOT TARGET slang::slang)
-    set(Slang_VERSION "2025.11")
+    set(Slang_VERSION "2026.2")
     FetchContent_Declare(
         slang
         URL https://github.com/shader-slang/slang/releases/download/v${Slang_VERSION}/slang-${Slang_VERSION}-windows-x86_64.zip

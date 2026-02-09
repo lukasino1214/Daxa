@@ -21,12 +21,21 @@ auto daxa_dvc_create_raster_pipeline(daxa_Device device, daxa_RasterPipelineInfo
     auto const MAXIMUM_GRAPHICS_STAGES = 6;
     require_subgroup_size_vkstructs.reserve(MAXIMUM_GRAPHICS_STAGES);
 
+    VkShaderDescriptorSetAndBindingMappingInfoEXT vk_descriptor_mapping_info{
+        .sType = VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT,
+        .pNext = nullptr,
+        .mappingCount = static_cast<u32>(ret.device->gpu_sro_table.descriptor_mappings.size()),
+        .pMappings = ret.device->gpu_sro_table.descriptor_mappings.data(),
+    };
+    
+    bool const uses_descriptor_heap = (device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) != 0;
+
     auto create_shader_module = [&](ShaderInfo const & shader_info, VkShaderStageFlagBits shader_stage) -> daxa_Result
     {
         VkShaderModule vk_shader_module = nullptr;
         VkShaderModuleCreateInfo const vk_shader_module_create_info{
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .pNext = nullptr,
+            .pNext = uses_descriptor_heap ? &vk_descriptor_mapping_info : nullptr,
             .flags = {},
             .codeSize = static_cast<u32>(shader_info.byte_code_size * sizeof(u32)),
             .pCode = shader_info.byte_code,
@@ -41,12 +50,35 @@ auto daxa_dvc_create_raster_pipeline(daxa_Device device, daxa_RasterPipelineInfo
         bool const requested_required_subgroup_size = shader_info.required_subgroup_size.has_value();
         bool const supports_required_subgroup_size_for_stage = (device->properties.required_subgroup_size_stages & shader_stage) != 0;
         bool const uses_required_subgroup_size = requested_required_subgroup_size && supports_required_subgroup_size_for_stage;
+        
+        // FIX: Build the pNext chain for the shader stage
+        void* stage_pnext = nullptr;
+        VkPipelineShaderStageRequiredSubgroupSizeCreateInfo* subgroup_size_struct = nullptr;
+        
         if (uses_required_subgroup_size)
+        {
             require_subgroup_size_vkstructs.push_back({
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO,
                 .pNext = nullptr,
                 .requiredSubgroupSize = shader_info.required_subgroup_size.value_or(0),
             });
+            subgroup_size_struct = &require_subgroup_size_vkstructs.back();
+            stage_pnext = subgroup_size_struct;
+        }
+
+        // FIX: When using descriptor heap, chain the mapping info into the stage's pNext
+        if (uses_descriptor_heap)
+        {
+            if (subgroup_size_struct != nullptr)
+            {
+                // Chain: subgroup_size -> descriptor_mapping
+                subgroup_size_struct->pNext = &vk_descriptor_mapping_info;
+            }
+            else
+            {
+                stage_pnext = &vk_descriptor_mapping_info;
+            }
+        }
 
         // NOTE(grundlett): However, we'll explicitly error if we requested the subgroup size for mesh shaders and its unsupported.
         if (shader_stage == VK_SHADER_STAGE_MESH_BIT_EXT && requested_required_subgroup_size && !supports_required_subgroup_size_for_stage)
@@ -57,7 +89,7 @@ auto daxa_dvc_create_raster_pipeline(daxa_Device device, daxa_RasterPipelineInfo
 
         VkPipelineShaderStageCreateInfo const vk_pipeline_shader_stage_create_info{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .pNext = uses_required_subgroup_size ? &require_subgroup_size_vkstructs.back() : nullptr,
+            .pNext = stage_pnext,  // FIX: Use the computed pNext chain
             .flags = std::bit_cast<VkPipelineShaderStageCreateFlags>(shader_info.create_flags),
             .stage = shader_stage,
             .module = vk_shader_module,
@@ -103,7 +135,6 @@ auto daxa_dvc_create_raster_pipeline(daxa_Device device, daxa_RasterPipelineInfo
         }
     }
 
-    ret.vk_pipeline_layout = ret.device->gpu_sro_table.pipeline_layouts.at((ret.info.push_constant_size + 3) / 4);
     constexpr VkPipelineVertexInputStateCreateInfo vk_vertex_input_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .pNext = nullptr,
@@ -280,6 +311,11 @@ auto daxa_dvc_create_raster_pipeline(daxa_Device device, daxa_RasterPipelineInfo
         .dynamicStateCount = static_cast<u32>(dynamic_state.size()),
         .pDynamicStates = dynamic_state.data(),
     };
+    VkPipelineCreateFlags2CreateInfo vk_pipeline_create_flags_2_ci{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT,
+    };
     VkPipelineRenderingCreateInfo vk_pipeline_rendering{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
         .pNext = nullptr,
@@ -289,6 +325,15 @@ auto daxa_dvc_create_raster_pipeline(daxa_Device device, daxa_RasterPipelineInfo
         .depthAttachmentFormat = static_cast<VkFormat>(ret.info.depth_test.value_or(no_depth).depth_attachment_format),
         .stencilAttachmentFormat = {},
     };
+    if(device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP)
+    {
+        vk_pipeline_rendering.pNext = &vk_pipeline_create_flags_2_ci;
+        ret.vk_pipeline_layout = VK_NULL_HANDLE;
+    } 
+    else
+    {
+        ret.vk_pipeline_layout = ret.device->gpu_sro_table.pipeline_layouts.at((ret.info.push_constant_size + 3) / 4);
+    }
     VkGraphicsPipelineCreateInfo const vk_graphics_pipeline_create_info{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = &vk_pipeline_rendering,
@@ -367,9 +412,15 @@ auto daxa_dvc_create_compute_pipeline(daxa_Device device, daxa_ComputePipelineIn
     ret.device = device;
     ret.info = *reinterpret_cast<ComputePipelineInfo const *>(info);
     VkShaderModule vk_shader_module = {};
+    VkShaderDescriptorSetAndBindingMappingInfoEXT vk_descriptor_mapping_info{
+        .sType = VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT,
+        .pNext = nullptr,
+        .mappingCount = static_cast<u32>(ret.device->gpu_sro_table.descriptor_mappings.size()),
+        .pMappings = ret.device->gpu_sro_table.descriptor_mappings.data(),
+    };
     VkShaderModuleCreateInfo const shader_module_ci{
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = ((device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) != 0) ? &vk_descriptor_mapping_info : nullptr,
         .flags = {},
         .codeSize = ret.info.shader_info.byte_code_size * static_cast<u32>(sizeof(u32)),
         .pCode = ret.info.shader_info.byte_code,
@@ -380,16 +431,15 @@ auto daxa_dvc_create_compute_pipeline(daxa_Device device, daxa_ComputePipelineIn
         _DAXA_DEBUG_BREAK
         return std::bit_cast<daxa_Result>(module_result);
     }
-    ret.vk_pipeline_layout = ret.device->gpu_sro_table.pipeline_layouts.at((ret.info.push_constant_size + 3) / 4);
 
     bool const requested_required_subgroup_size = ret.info.shader_info.required_subgroup_size.has_value();
     bool const supports_required_subgroup_size_for_stage = (device->properties.required_subgroup_size_stages & VK_SHADER_STAGE_COMPUTE_BIT) != 0;
     bool const uses_required_subgroup_size = requested_required_subgroup_size && supports_required_subgroup_size_for_stage;
 
-    if (!supports_required_subgroup_size_for_stage)
+    if (requested_required_subgroup_size && !supports_required_subgroup_size_for_stage)
     {
         _DAXA_DEBUG_BREAK
-        return std::bit_cast<daxa_Result>(module_result);
+        return DAXA_RESULT_ERROR_FEATURE_NOT_PRESENT;
     }
 
     VkPipelineShaderStageRequiredSubgroupSizeCreateInfo require_subgroup_size_vkstruct{
@@ -397,13 +447,46 @@ auto daxa_dvc_create_compute_pipeline(daxa_Device device, daxa_ComputePipelineIn
         .pNext = nullptr,
         .requiredSubgroupSize = ret.info.shader_info.required_subgroup_size.value_or(0),
     };
+
+    bool const uses_descriptor_heap = (device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) != 0;
+    void* shader_stage_pnext = nullptr;
+    
+    if (uses_required_subgroup_size && uses_descriptor_heap)
+    {
+        require_subgroup_size_vkstruct.pNext = &vk_descriptor_mapping_info;
+        shader_stage_pnext = &require_subgroup_size_vkstruct;
+    }
+    else if (uses_required_subgroup_size)
+    {
+        shader_stage_pnext = &require_subgroup_size_vkstruct;
+    }
+    else if (uses_descriptor_heap)
+    {
+        shader_stage_pnext = &vk_descriptor_mapping_info;
+    }
+    
+    VkPipelineCreateFlags2CreateInfo vk_pipeline_create_flags_2_ci{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT,
+    };
+    void* p_chain = nullptr;
+    if(uses_descriptor_heap)
+    {
+        p_chain = &vk_pipeline_create_flags_2_ci;
+        ret.vk_pipeline_layout = VK_NULL_HANDLE;
+    } 
+    else
+    {
+        ret.vk_pipeline_layout = ret.device->gpu_sro_table.pipeline_layouts.at((ret.info.push_constant_size + 3) / 4);
+    }
     VkComputePipelineCreateInfo const vk_compute_pipeline_create_info{
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = p_chain,
         .flags = {},
         .stage = VkPipelineShaderStageCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .pNext = uses_required_subgroup_size ? &require_subgroup_size_vkstruct : nullptr,
+            .pNext = shader_stage_pnext,  // FIX: Use the computed pNext chain
             .flags = std::bit_cast<VkPipelineShaderStageCreateFlags>(ret.info.shader_info.create_flags),
             .stage = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT,
             .module = vk_shader_module,
@@ -514,12 +597,21 @@ auto daxa_dvc_create_ray_tracing_pipeline_or_library(daxa_Device device, daxa_Ra
     // Necessary to prevent re-allocation
     require_subgroup_size_vkstructs.reserve(all_stages_count);
 
+    VkShaderDescriptorSetAndBindingMappingInfoEXT vk_descriptor_mapping_info{
+        .sType = VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT,
+        .pNext = nullptr,
+        .mappingCount = static_cast<u32>(ret.device->gpu_sro_table.descriptor_mappings.size()),
+        .pMappings = ret.device->gpu_sro_table.descriptor_mappings.data(),
+    };
+    
+    bool const uses_descriptor_heap = (device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) != 0;
+
     auto create_shader_module = [&](ShaderInfo const & shader_info, VkShaderStageFlagBits shader_stage) -> daxa_Result
     {
         VkShaderModule vk_shader_module = nullptr;
         VkShaderModuleCreateInfo const vk_shader_module_create_info{
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .pNext = nullptr,
+            .pNext = uses_descriptor_heap ? &vk_descriptor_mapping_info : nullptr,
             .flags = {},
             .codeSize = static_cast<u32>(shader_info.byte_code_size * sizeof(u32)),
             .pCode = shader_info.byte_code,
@@ -534,15 +626,35 @@ auto daxa_dvc_create_ray_tracing_pipeline_or_library(daxa_Device device, daxa_Ra
         bool const supports_required_subgroup_size_for_stage = (device->properties.required_subgroup_size_stages & shader_stage) != 0;
         bool const uses_required_subgroup_size = requested_required_subgroup_size && supports_required_subgroup_size_for_stage;
 
+        void* stage_pnext = nullptr;
+        VkPipelineShaderStageRequiredSubgroupSizeCreateInfo* subgroup_size_struct = nullptr;
+
         if (uses_required_subgroup_size)
+        {
             require_subgroup_size_vkstructs.push_back({
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO,
                 .pNext = nullptr,
                 .requiredSubgroupSize = shader_info.required_subgroup_size.value_or(0),
             });
+            subgroup_size_struct = &require_subgroup_size_vkstructs.back();
+            stage_pnext = subgroup_size_struct;
+        }
+
+        if (uses_descriptor_heap)
+        {
+            if (subgroup_size_struct != nullptr)
+            {
+                subgroup_size_struct->pNext = &vk_descriptor_mapping_info;
+            }
+            else
+            {
+                stage_pnext = &vk_descriptor_mapping_info;
+            }
+        }
+
         VkPipelineShaderStageCreateInfo const vk_pipeline_shader_stage_create_info{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .pNext = uses_required_subgroup_size ? &require_subgroup_size_vkstructs.back() : nullptr,
+            .pNext = stage_pnext,  // FIX: Use the computed pNext chain
             .flags = std::bit_cast<VkPipelineShaderStageCreateFlags>(shader_info.create_flags),
             .stage = shader_stage,
             .module = vk_shader_module,
@@ -613,11 +725,24 @@ auto daxa_dvc_create_ray_tracing_pipeline_or_library(daxa_Device device, daxa_Ra
     u32 const group_count = static_cast<u32>(groups.size());
     u32 const stages_count = static_cast<u32>(stages.size());
 
-    ret.vk_pipeline_layout = ret.device->gpu_sro_table.pipeline_layouts.at((ret.info.push_constant_size + 3) / 4);
-
+    VkPipelineCreateFlags2CreateInfo vk_pipeline_create_flags_2_ci{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT,
+    };
+    void* p_chain = nullptr;
+    if(device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP)
+    {
+        p_chain = &vk_pipeline_create_flags_2_ci;
+        ret.vk_pipeline_layout = VK_NULL_HANDLE;
+    } 
+    else
+    {
+        ret.vk_pipeline_layout = ret.device->gpu_sro_table.pipeline_layouts.at((ret.info.push_constant_size + 3) / 4);
+    }
     VkRayTracingPipelineCreateInfoKHR vk_ray_tracing_pipeline_create_info{
         .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
-        .pNext = nullptr,
+        .pNext = p_chain,
         .flags = {},
         .stageCount = stages_count,
         .pStages = stages.data(),

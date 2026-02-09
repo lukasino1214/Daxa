@@ -159,6 +159,11 @@ auto construct_daxa_physical_device_properties(VkPhysicalDevice physical_device)
     vk_physical_device_host_image_copy_properties_ext.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_PROPERTIES_EXT;
     vk_physical_device_host_image_copy_properties_ext.pNext = nullptr;
 
+    bool descriptor_heap_supported = false;
+    VkPhysicalDeviceDescriptorHeapPropertiesEXT vk_physical_device_descriptor_heap_properties_ext = {};
+    vk_physical_device_descriptor_heap_properties_ext.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT;
+    vk_physical_device_descriptor_heap_properties_ext.pNext = nullptr;
+
     void * pNextChain = nullptr;
 
     u32 count = 0;
@@ -196,6 +201,12 @@ auto construct_daxa_physical_device_properties(VkPhysicalDevice physical_device)
             host_image_copy_supported = true;
             vk_physical_device_host_image_copy_properties_ext.pNext = pNextChain;
             pNextChain = &vk_physical_device_host_image_copy_properties_ext;
+        }
+        if (std::strcmp(extension.extensionName, VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME) == 0)
+        {
+            descriptor_heap_supported = true;
+            vk_physical_device_descriptor_heap_properties_ext.pNext = pNextChain;
+            pNextChain = &vk_physical_device_descriptor_heap_properties_ext;
         }
     }
 
@@ -256,6 +267,29 @@ auto construct_daxa_physical_device_properties(VkPhysicalDevice physical_device)
             r_cast<std::byte const *>(&vk_physical_device_host_image_copy_properties_ext.optimalTilingLayoutUUID[0]),
             sizeof(daxa_HostImageCopyProperties::optimal_tiling_layout_uuid));
         ret.host_image_copy_properties.value.identical_memory_type_requirements = static_cast<daxa_Bool8>(vk_physical_device_host_image_copy_properties_ext.identicalMemoryTypeRequirements);
+    }
+    if (descriptor_heap_supported)
+    {
+        ret.descriptor_heap_properties.has_value = 1;
+        ret.descriptor_heap_properties.value.sampler_heap_alignment = vk_physical_device_descriptor_heap_properties_ext.samplerHeapAlignment;
+        ret.descriptor_heap_properties.value.resource_heap_alignment = vk_physical_device_descriptor_heap_properties_ext.resourceHeapAlignment;
+        ret.descriptor_heap_properties.value.max_sampler_heap_size = vk_physical_device_descriptor_heap_properties_ext.maxSamplerHeapSize;
+        ret.descriptor_heap_properties.value.max_resource_heap_size = vk_physical_device_descriptor_heap_properties_ext.maxResourceHeapSize;
+        ret.descriptor_heap_properties.value.min_sampler_heap_reserved_range = vk_physical_device_descriptor_heap_properties_ext.minSamplerHeapReservedRange;
+        ret.descriptor_heap_properties.value.min_sampler_heap_reserved_range_with_embedded = vk_physical_device_descriptor_heap_properties_ext.minSamplerHeapReservedRangeWithEmbedded;
+        ret.descriptor_heap_properties.value.min_resource_heap_reserved_range = vk_physical_device_descriptor_heap_properties_ext.minResourceHeapReservedRange;
+        ret.descriptor_heap_properties.value.sampler_descriptor_size = vk_physical_device_descriptor_heap_properties_ext.samplerDescriptorSize;
+        ret.descriptor_heap_properties.value.image_descriptor_size = vk_physical_device_descriptor_heap_properties_ext.imageDescriptorSize;
+        ret.descriptor_heap_properties.value.buffer_descriptor_size = vk_physical_device_descriptor_heap_properties_ext.bufferDescriptorSize;
+        ret.descriptor_heap_properties.value.sampler_descriptor_alignment = vk_physical_device_descriptor_heap_properties_ext.samplerDescriptorAlignment;
+        ret.descriptor_heap_properties.value.image_descriptor_alignment = vk_physical_device_descriptor_heap_properties_ext.imageDescriptorAlignment;
+        ret.descriptor_heap_properties.value.buffer_descriptor_alignment = vk_physical_device_descriptor_heap_properties_ext.bufferDescriptorAlignment;
+        ret.descriptor_heap_properties.value.max_push_data_size = vk_physical_device_descriptor_heap_properties_ext.maxPushDataSize;
+        ret.descriptor_heap_properties.value.image_capture_replay_opaque_data_size = vk_physical_device_descriptor_heap_properties_ext.imageCaptureReplayOpaqueDataSize;
+        ret.descriptor_heap_properties.value.max_descriptor_heap_embedded_samplers = vk_physical_device_descriptor_heap_properties_ext.maxDescriptorHeapEmbeddedSamplers;
+        ret.descriptor_heap_properties.value.sampler_ycbcr_conversion_count = vk_physical_device_descriptor_heap_properties_ext.samplerYcbcrConversionCount;
+        ret.descriptor_heap_properties.value.sparse_descriptor_heaps = static_cast<daxa_Bool8>(vk_physical_device_descriptor_heap_properties_ext.sparseDescriptorHeaps);
+        ret.descriptor_heap_properties.value.protected_descriptor_heaps = static_cast<daxa_Bool8>(vk_physical_device_descriptor_heap_properties_ext.protectedDescriptorHeaps);
     }
 
     u32 queue_family_props_count = 0;

@@ -637,36 +637,58 @@ auto daxa_cmd_push_constant(daxa_CommandRecorder self, daxa_PushConstantInfo con
     result = validate_queue_family(self->info.queue_family, DAXA_QUEUE_FAMILY_COMPUTE);
     _DAXA_RETURN_IF_ERROR(result, result);
     daxa_cmd_flush_barriers(self);
-    if (daxa::holds_alternative<daxa_ImplCommandRecorder::NoPipeline>(self->current_pipeline))
+    
+    if((self->device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
     {
-        _DAXA_RETURN_IF_ERROR(DAXA_RESULT_NO_PIPELINE_SET, DAXA_RESULT_NO_PIPELINE_SET);
+        if (daxa::holds_alternative<daxa_ImplCommandRecorder::NoPipeline>(self->current_pipeline))
+        {
+            _DAXA_RETURN_IF_ERROR(DAXA_RESULT_NO_PIPELINE_SET, DAXA_RESULT_NO_PIPELINE_SET);
+        }
+        VkPipelineLayout vk_pipeline_layout = {};
+        u32 current_pipeline_push_constant_size = {};
+        if (auto * pipeline = daxa::get_if<daxa_ComputePipeline>(&self->current_pipeline))
+        {
+            current_pipeline_push_constant_size = (**pipeline).info.push_constant_size;
+            vk_pipeline_layout = (**pipeline).vk_pipeline_layout;
+        }
+        if (auto * pipeline = daxa::get_if<daxa_RasterPipeline>(&self->current_pipeline))
+        {
+            current_pipeline_push_constant_size = (**pipeline).info.push_constant_size;
+            vk_pipeline_layout = (**pipeline).vk_pipeline_layout;
+        }
+        if (auto * pipeline = daxa::get_if<daxa_RayTracingPipeline>(&self->current_pipeline))
+        {
+            current_pipeline_push_constant_size = (**pipeline).info.push_constant_size;
+            vk_pipeline_layout = (**pipeline).vk_pipeline_layout;
+        }
+        if (current_pipeline_push_constant_size < info->size)
+        {
+            _DAXA_RETURN_IF_ERROR(DAXA_RESULT_PUSH_CONSTANT_RANGE_EXCEEDED, DAXA_RESULT_PUSH_CONSTANT_RANGE_EXCEEDED);
+        }
+        // Always write the whole range, fill with 0xFF to the size of the push constant.
+        // This makes validation and renderdoc happy as well as help debug uninitialized push constant data
+        std::array<std::byte, DAXA_MAX_PUSH_CONSTANT_BYTE_SIZE> const_data = {std::byte{0xFF}};
+        std::memcpy(const_data.data(), info->data, info->size);
+        vkCmdPushConstants(self->command_arena->vk_command_buffer, vk_pipeline_layout, VK_SHADER_STAGE_ALL, 0, current_pipeline_push_constant_size, const_data.data());
     }
-    VkPipelineLayout vk_pipeline_layout = {};
-    u32 current_pipeline_push_constant_size = {};
-    if (auto * pipeline = daxa::get_if<daxa_ComputePipeline>(&self->current_pipeline))
+    else 
     {
-        current_pipeline_push_constant_size = (**pipeline).info.push_constant_size;
-        vk_pipeline_layout = (**pipeline).vk_pipeline_layout;
+        std::array<std::byte, DAXA_MAX_PUSH_CONSTANT_BYTE_SIZE> const_data = {std::byte{0xFF}};
+        std::memcpy(const_data.data(), info->data, info->size);
+
+        const VkPushDataInfoEXT vk_push_data_info_ext{
+            .sType = VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT,
+            .pNext = {},
+            .offset = 0,
+            .data = {
+                .address = const_data.data(),
+                .size = DAXA_MAX_PUSH_CONSTANT_BYTE_SIZE,
+            },
+        };
+
+        self->device->vkCmdPushDataEXT(self->command_arena->vk_command_buffer, &vk_push_data_info_ext);
     }
-    if (auto * pipeline = daxa::get_if<daxa_RasterPipeline>(&self->current_pipeline))
-    {
-        current_pipeline_push_constant_size = (**pipeline).info.push_constant_size;
-        vk_pipeline_layout = (**pipeline).vk_pipeline_layout;
-    }
-    if (auto * pipeline = daxa::get_if<daxa_RayTracingPipeline>(&self->current_pipeline))
-    {
-        current_pipeline_push_constant_size = (**pipeline).info.push_constant_size;
-        vk_pipeline_layout = (**pipeline).vk_pipeline_layout;
-    }
-    if (current_pipeline_push_constant_size < info->size)
-    {
-        _DAXA_RETURN_IF_ERROR(DAXA_RESULT_PUSH_CONSTANT_RANGE_EXCEEDED, DAXA_RESULT_PUSH_CONSTANT_RANGE_EXCEEDED);
-    }
-    // Always write the whole range, fill with 0xFF to the size of the push constant.
-    // This makes validation and renderdoc happy as well as help debug uninitialized push constant data
-    std::array<std::byte, DAXA_MAX_PUSH_CONSTANT_BYTE_SIZE> const_data = {std::byte{0xFF}};
-    std::memcpy(const_data.data(), info->data, info->size);
-    vkCmdPushConstants(self->command_arena->vk_command_buffer, vk_pipeline_layout, VK_SHADER_STAGE_ALL, 0, current_pipeline_push_constant_size, const_data.data());
+
     return DAXA_RESULT_SUCCESS;
 }
 
@@ -681,7 +703,15 @@ auto daxa_cmd_set_ray_tracing_pipeline(daxa_CommandRecorder self, daxa_RayTracin
     bool const same_type_same_layout_as_prev_pipe = prev_pipeline_rt && daxa::get<daxa_RayTracingPipeline>(self->current_pipeline)->vk_pipeline_layout == pipeline->vk_pipeline_layout;
     if (!same_type_same_layout_as_prev_pipe)
     {
-        vkCmdBindDescriptorSets(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline->vk_pipeline_layout, 0, 1, &self->device->gpu_sro_table.vk_descriptor_set, 0, nullptr);
+        if((self->device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
+        {
+            vkCmdBindDescriptorSets(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline->vk_pipeline_layout, 0, 1, &self->device->gpu_sro_table.vk_descriptor_set, 0, nullptr);
+        }
+        else
+        {
+            self->device->vkCmdBindResourceHeapEXT(self->command_arena->vk_command_buffer, &self->device->gpu_sro_table.resource_heap.bind_info);
+            self->device->vkCmdBindSamplerHeapEXT(self->command_arena->vk_command_buffer, &self->device->gpu_sro_table.sampler_heap.bind_info);
+        }
     }
     self->current_pipeline = pipeline;
     vkCmdBindPipeline(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline->vk_pipeline);
@@ -699,7 +729,15 @@ auto daxa_cmd_set_compute_pipeline(daxa_CommandRecorder self, daxa_ComputePipeli
     bool const same_type_same_layout_as_prev_pipe = prev_pipeline_compute && daxa::get<daxa_ComputePipeline>(self->current_pipeline)->vk_pipeline_layout == pipeline->vk_pipeline_layout;
     if (!same_type_same_layout_as_prev_pipe)
     {
-        vkCmdBindDescriptorSets(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->vk_pipeline_layout, 0, 1, &self->device->gpu_sro_table.vk_descriptor_set, 0, nullptr);
+        if((self->device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
+        {
+            vkCmdBindDescriptorSets(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline->vk_pipeline_layout, 0, 1, &self->device->gpu_sro_table.vk_descriptor_set, 0, nullptr);
+        }
+        else
+        {
+            self->device->vkCmdBindResourceHeapEXT(self->command_arena->vk_command_buffer, &self->device->gpu_sro_table.resource_heap.bind_info);
+            self->device->vkCmdBindSamplerHeapEXT(self->command_arena->vk_command_buffer, &self->device->gpu_sro_table.sampler_heap.bind_info);
+        }
     }
     self->current_pipeline = pipeline;
     vkCmdBindPipeline(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->vk_pipeline);
@@ -717,7 +755,15 @@ auto daxa_cmd_set_raster_pipeline(daxa_CommandRecorder self, daxa_RasterPipeline
     bool const same_type_same_layout_as_prev_pipe = prev_pipeline_raster && daxa::get<daxa_RasterPipeline>(self->current_pipeline)->vk_pipeline_layout == pipeline->vk_pipeline_layout;
     if (!same_type_same_layout_as_prev_pipe)
     {
-        vkCmdBindDescriptorSets(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vk_pipeline_layout, 0, 1, &self->device->gpu_sro_table.vk_descriptor_set, 0, nullptr);
+        if((self->device->properties.implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP) == 0)
+        {
+            vkCmdBindDescriptorSets(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline->vk_pipeline_layout, 0, 1, &self->device->gpu_sro_table.vk_descriptor_set, 0, nullptr);
+        }
+        else
+        {
+            self->device->vkCmdBindResourceHeapEXT(self->command_arena->vk_command_buffer, &self->device->gpu_sro_table.resource_heap.bind_info);
+            self->device->vkCmdBindSamplerHeapEXT(self->command_arena->vk_command_buffer, &self->device->gpu_sro_table.sampler_heap.bind_info);
+        }
     }
     self->current_pipeline = pipeline;
     vkCmdBindPipeline(self->command_arena->vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vk_pipeline);

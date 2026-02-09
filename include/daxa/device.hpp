@@ -202,6 +202,29 @@ namespace daxa
         bool identical_memory_type_requirements;
     };
 
+    struct DescriptorHeapProperties
+    {
+        u64 sampler_heap_alignment = {};
+        u64 resource_heap_alignment = {};
+        u64 max_sampler_heap_size = {};
+        u64 max_resource_heap_size = {};
+        u64 min_sampler_heap_reserved_range = {};
+        u64 min_sampler_heap_reserved_range_with_embedded = {};
+        u64 min_resource_heap_reserved_range = {};
+        u64 sampler_descriptor_size = {};
+        u64 image_descriptor_size = {};
+        u64 buffer_descriptor_size = {};
+        u64 sampler_descriptor_alignment = {};
+        u64 image_descriptor_alignment = {};
+        u64 buffer_descriptor_alignment = {};
+        u64 max_push_data_size = {};
+        usize image_capture_replay_opaque_data_size = {};
+        u32 max_descriptor_heap_embedded_samplers = {};
+        u32 sampler_ycbcr_conversion_count = {};
+        bool sparse_descriptor_heaps = {};
+        bool protected_descriptor_heaps = {};
+    };
+
 #if !DAXA_REMOVE_DEPRECATED
     struct DeviceFlagsProperties
     {
@@ -311,6 +334,7 @@ namespace daxa
         static inline constexpr ImplicitFeatureFlags SHADER_CLOCK = {0x1 << 14};
         static inline constexpr ImplicitFeatureFlags HOST_IMAGE_COPY = {0x1 << 15};
         static inline constexpr ImplicitFeatureFlags LINE_RASTERIZATION = {0x1 << 16};
+        static inline constexpr ImplicitFeatureFlags DESCRIPTOR_HEAP = {0x1 << 17};
     };
 
     struct DeviceProperties
@@ -328,6 +352,7 @@ namespace daxa
         Optional<AccelerationStructureProperties> acceleration_structure_properties = {};
         Optional<InvocationReorderProperties> invocation_reorder_properties = {};
         Optional<HostImageCopyProperties> host_image_copy_properties = {};
+        Optional<DescriptorHeapProperties> descriptor_heap_properties = {};
         u32 required_subgroup_size_stages;
         u32 compute_queue_count = {};
         u32 transfer_queue_count = {};

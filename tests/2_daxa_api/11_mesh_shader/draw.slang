@@ -11,7 +11,8 @@ struct Vertex
 
 struct Primitive
 {
-    [[vk::location(0)]] nointerpolation float3 tint;
+    [[vk::location(0)]] 
+    nointerpolation float3 tint;
     bool cull : SV_CullPrimitive;
 }
 
@@ -46,6 +47,7 @@ void entry_mesh(
     }
 }
 
+[numthreads(1, 1, 1)] // REQUIRED for task shaders
 [shader("amplification")]
 void entry_task()
 {

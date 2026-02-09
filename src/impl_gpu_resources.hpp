@@ -409,6 +409,45 @@ namespace daxa
         VkDescriptorSet vk_descriptor_set = {};
         VkDescriptorPool vk_descriptor_pool = {};
 
+        struct DescriptorHeap
+        {
+            VkBuffer vk_buffer = {};
+            VmaAllocation vma_allocation = {};
+            void * host_ptr = {};
+            VkDeviceAddress device_address = {};
+            VkDeviceSize size = {};
+            VkBindHeapInfoEXT bind_info = {};
+        };
+
+        struct DescriptorHeapLayout
+        {
+            VkDeviceSize resource_heap_size = {};
+            VkDeviceSize sampler_heap_size = {};
+            VkDeviceSize resource_heap_reserved_offset = {};
+            VkDeviceSize resource_heap_reserved_size = {};
+            VkDeviceSize sampler_heap_reserved_offset = {};
+            VkDeviceSize sampler_heap_reserved_size = {};
+            VkDeviceSize storage_buffer_offset = {};
+            VkDeviceSize storage_image_offset = {};
+            VkDeviceSize sampled_image_offset = {};
+            VkDeviceSize sampler_offset = {};
+            VkDeviceSize buffer_device_address_offset = {};
+            VkDeviceSize acceleration_structure_offset = {};
+            VkDeviceSize storage_buffer_stride = {};
+            VkDeviceSize image_stride = {};
+            VkDeviceSize sampler_stride = {};
+            VkDeviceSize acceleration_structure_stride = {};
+            VkDeviceSize storage_buffer_descriptor_size = {};
+            VkDeviceSize image_descriptor_size = {};
+            VkDeviceSize sampler_descriptor_size = {};
+            VkDeviceSize acceleration_structure_descriptor_size = {};
+        };
+
+        DescriptorHeap resource_heap = {};
+        DescriptorHeap sampler_heap = {};
+        DescriptorHeapLayout heap_layout = {};
+        std::array<VkDescriptorSetAndBindingMappingEXT, 7> descriptor_mappings = {};
+
         // Contains pipeline layouts with varying push constant range size.
         // The first size is 0 word, second is 1 word, all others are a power of two (maximum is DAXA_MAX_PUSH_CONSTANT_BYTE_SIZE).
         std::array<VkPipelineLayout, DAXA_PIPELINE_LAYOUT_COUNT> pipeline_layouts = {};
@@ -418,17 +457,25 @@ namespace daxa
             u32 max_images,
             u32 max_samplers,
             u32 max_acceleration_structures,
+            VkPhysicalDevice physical_device,
             VkDevice device,
             VkBuffer device_address_buffer,
+            VmaAllocator vma_allocator,
+            Optional<DescriptorHeapProperties> descriptor_heap_properties_opt,
+            PFN_vkGetPhysicalDeviceDescriptorSizeEXT vkGetPhysicalDeviceDescriptorSizeEXT,
             PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT) -> daxa_Result;
-        void cleanup(VkDevice device);
+        void cleanup(VkDevice device, VmaAllocator vma_allocator);
     };
 
     void write_descriptor_set_sampler(VkDevice vk_device, VkDescriptorSet vk_descriptor_set, VkSampler vk_sampler, u32 index);
+    void write_descriptor_heap_sampler(VkDevice vk_device, PFN_vkWriteSamplerDescriptorsEXT vkWriteSamplerDescriptorsEXT, GPUShaderResourceTable const & table, VkSamplerCreateInfo const & vk_sampler_create_info, u32 index);
 
     void write_descriptor_set_buffer(VkDevice vk_device, VkDescriptorSet vk_descriptor_set, VkBuffer vk_buffer, VkDeviceSize offset, VkDeviceSize range, u32 index);
+    void write_descriptor_heap_buffer(VkDevice vk_device, PFN_vkWriteResourceDescriptorsEXT vkWriteResourceDescriptorsEXT, GPUShaderResourceTable const & table, VkDeviceAddress address, VkDeviceSize range, u32 index);
 
     void write_descriptor_set_image(VkDevice vk_device, VkDescriptorSet vk_descriptor_set, VkImageView vk_image_view, ImageUsageFlags usage, u32 index);
+    void write_descriptor_heap_image(VkDevice vk_device, PFN_vkWriteResourceDescriptorsEXT vkWriteResourceDescriptorsEXT, GPUShaderResourceTable const & table, VkImageViewCreateInfo const & vk_image_view_create_info, ImageUsageFlags usage, u32 index);
 
     void write_descriptor_set_acceleration_structure(VkDevice vk_device, VkDescriptorSet vk_descriptor_set, VkAccelerationStructureKHR vk_acceleration_structure, u32 index);
+    void write_descriptor_heap_acceleration_structure(VkDevice vk_device, PFN_vkWriteResourceDescriptorsEXT vkWriteResourceDescriptorsEXT, GPUShaderResourceTable const & table, VkDeviceAddress address, u32 index);
 } // namespace daxa

@@ -8,6 +8,7 @@
 #define DAXA_SAMPLER_BINDING 3
 #define DAXA_BUFFER_DEVICE_ADDRESS_BUFFER_BINDING 4
 #define DAXA_ACCELERATION_STRUCTURE_BINDING 5
+#define DAXA_PUSH_DATA_BINDING 6
 #endif
 
 #define DAXA_DECL_STORAGE_BUFFERS [[vk::binding(DAXA_STORAGE_BUFFER_BINDING, 0)]]
@@ -98,7 +99,7 @@ namespace daxa
         }
         daxa_u64 device_address()
         {
-            return buffer_addresses[index()];
+            return buffer_addresses[NonUniformResourceIndex(index())];
         }
     };
 
@@ -149,7 +150,7 @@ namespace daxa
         }
         SamplerState get()
         {
-            return samplers[index()];
+            return samplers[NonUniformResourceIndex(index())];
         }
     };
 
@@ -185,19 +186,19 @@ namespace daxa
 
     extension ByteAddressBuffer
     {
-        static ByteAddressBuffer get(daxa::BufferId i) { return buffers[i.index()]; }
-        static ByteAddressBuffer get_coherent(daxa::BufferId i) { return buffers[i.index()]; }
+        static ByteAddressBuffer get(daxa::BufferId i) { return buffers[NonUniformResourceIndex(i.index())]; }
+        static ByteAddressBuffer get_coherent(daxa::BufferId i) { return buffers[NonUniformResourceIndex(i.index())]; }
     };    
 
     extension RWByteAddressBuffer
     {
-        static RWByteAddressBuffer get(daxa::BufferId i) { return buffers[i.index()]; }
-        static RWByteAddressBuffer get_coherent(daxa::BufferId i) { return buffers[i.index()]; }
+        static RWByteAddressBuffer get(daxa::BufferId i) { return buffers[NonUniformResourceIndex(i.index())]; }
+        static RWByteAddressBuffer get_coherent(daxa::BufferId i) { return buffers[NonUniformResourceIndex(i.index())]; }
     };    
 
     extension SamplerState
     {
-        static SamplerState get(daxa::SamplerId i) { return samplers[i.index()]; }
+        static SamplerState get(daxa::SamplerId i) { return samplers[NonUniformResourceIndex(i.index())]; }
     }
 
 } // namespace daxa

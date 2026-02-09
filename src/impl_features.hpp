@@ -4,7 +4,6 @@
 #include <daxa/daxa.hpp>
 #include <daxa/device.hpp>
 
-
 #include <daxa/c/device.h>
 #include <vulkan/vulkan_core.h>
 
@@ -62,6 +61,8 @@ namespace daxa
             physical_device_shader_clock_khr,
             physical_device_host_image_copy_ext,
             physical_device_line_rasterization_khr,
+            physical_device_descriptor_heap_ext,
+            physical_device_maintance_5_khr,
             COUNT
         };
         constexpr static std::array<char const *, COUNT> extension_names = {
@@ -84,6 +85,8 @@ namespace daxa
             VK_KHR_SHADER_CLOCK_EXTENSION_NAME,
             VK_EXT_HOST_IMAGE_COPY_EXTENSION_NAME,
             VK_KHR_LINE_RASTERIZATION_EXTENSION_NAME,
+            VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME,
+            VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
         };
         char const * extension_name_list[COUNT] = {};
         u32 extension_name_list_size = {};
@@ -123,6 +126,8 @@ namespace daxa
         VkPhysicalDeviceHostImageCopyFeaturesEXT physical_device_host_image_copy_features_ext = {};
         VkPhysicalDeviceLineRasterizationFeaturesKHR physical_device_line_rasterization_features_khr = {};
         VkPhysicalDevicePipelineLibraryGroupHandlesFeaturesEXT physical_device_pipeline_library_group_handles_ext = {};
+        VkPhysicalDeviceDescriptorHeapFeaturesEXT physical_device_descriptor_heap_features_ext = {};
+        VkPhysicalDeviceMaintenance5FeaturesKHR physical_device_maintenance_5_features_khr = {};
         VkPhysicalDeviceShaderDemoteToHelperInvocationFeatures physical_device_shader_demote_to_helper_invocation_features = {};
         VkPhysicalDeviceFeatures2 physical_device_features_2 = {};
         bool conservative_rasterization = {};
@@ -145,6 +150,7 @@ namespace daxa
         VkPhysicalDeviceMeshShaderPropertiesEXT physical_device_mesh_shader_properties_ext = {};
         VkPhysicalDeviceHostImageCopyPropertiesEXT physical_device_host_image_copy_properties_ext = {};
         VkPhysicalDeviceSubgroupSizeControlProperties physical_device_subgroup_size_control_properties = {};
+        VkPhysicalDeviceDescriptorHeapPropertiesEXT physical_device_descriptor_heap_properties_ext = {};
         VkPhysicalDeviceProperties2 physical_device_properties_2 = {};
 
         void initialize(daxa_DeviceImplicitFeatureFlagBits implicit_features);

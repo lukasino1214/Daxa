@@ -188,6 +188,20 @@ namespace daxa
             chain = static_cast<void *>(&physical_device_pipeline_library_group_handles_ext);
         }
 
+        if (extensions.extensions_present[extensions.physical_device_descriptor_heap_ext])
+        {
+            physical_device_descriptor_heap_features_ext.pNext = chain;
+            physical_device_descriptor_heap_features_ext.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT;
+            chain = static_cast<void *>(&physical_device_descriptor_heap_features_ext);
+        }
+
+        if (extensions.extensions_present[extensions.physical_device_maintance_5_khr])
+        {
+            physical_device_maintenance_5_features_khr.pNext = chain;
+            physical_device_maintenance_5_features_khr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR;
+            chain = static_cast<void *>(&physical_device_maintenance_5_features_khr);
+        }
+
         physical_device_shader_demote_to_helper_invocation_features.pNext = chain;
         physical_device_shader_demote_to_helper_invocation_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES;
         physical_device_shader_demote_to_helper_invocation_features.shaderDemoteToHelperInvocation = true;
@@ -356,6 +370,10 @@ namespace daxa
         offsetof(PhysicalDeviceFeaturesStruct, physical_device_line_rasterization_features_khr.stippledSmoothLines),
     };
 
+    constexpr static std::array DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP_VK_FEATURES = std::array{
+        offsetof(PhysicalDeviceFeaturesStruct, physical_device_descriptor_heap_features_ext.descriptorHeap),
+    };
+
     constexpr static std::array IMPLICIT_FEATURES = std::array{
         ImplicitFeature{DAXA_IMPLICIT_FEATURE_FLAG_MESH_SHADER_VK_FEATURES, DAXA_IMPLICIT_FEATURE_FLAG_MESH_SHADER},
         ImplicitFeature{DAXA_IMPLICIT_FEATURE_FLAG_BASIC_RAY_TRACING_VK_FEATURES, DAXA_IMPLICIT_FEATURE_FLAG_BASIC_RAY_TRACING},
@@ -375,6 +393,7 @@ namespace daxa
         ImplicitFeature{DAXA_IMPLICIT_FEATURE_FLAG_SHADER_CLOCK_VK_FEATURES, DAXA_IMPLICIT_FEATURE_FLAG_SHADER_CLOCK},
         ImplicitFeature{DAXA_IMPLICIT_FEATURE_FLAG_HOST_IMAGE_COPY_VK_FEATURES, DAXA_IMPLICIT_FEATURE_FLAG_HOST_IMAGE_COPY},
         ImplicitFeature{DAXA_IMPLICIT_FEATURE_FLAG_LINE_RASTERIZATION_VK_FEATURES, DAXA_IMPLICIT_FEATURE_FLAG_LINE_RASTERIZATION},
+        ImplicitFeature{DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP_VK_FEATURES, DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP},
     };
 
     // === Explicit Features ===
@@ -547,6 +566,13 @@ namespace daxa
             chain = static_cast<void *>(&physical_device_host_image_copy_properties_ext);
         }
 
+        if(implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP)
+        {
+            physical_device_descriptor_heap_properties_ext.pNext = chain;
+            physical_device_descriptor_heap_properties_ext.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT;
+            chain = static_cast<void *>(&physical_device_descriptor_heap_properties_ext);
+        }
+
         physical_device_subgroup_size_control_properties.pNext = chain;
         physical_device_subgroup_size_control_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_PROPERTIES;
         chain = static_cast<void *>(&physical_device_subgroup_size_control_properties);
@@ -620,6 +646,30 @@ namespace daxa
                 r_cast<std::byte const *>(&properties_struct.physical_device_host_image_copy_properties_ext.optimalTilingLayoutUUID[0]),
                 sizeof(daxa_HostImageCopyProperties::optimal_tiling_layout_uuid));
             out->host_image_copy_properties.value.identical_memory_type_requirements = static_cast<daxa_Bool8>(properties_struct.physical_device_host_image_copy_properties_ext.identicalMemoryTypeRequirements);
+        }
+
+        if(out->implicit_features & DAXA_IMPLICIT_FEATURE_FLAG_DESCRIPTOR_HEAP)
+        {
+            out->descriptor_heap_properties.has_value = 1;
+            out->descriptor_heap_properties.value.sampler_heap_alignment = properties_struct.physical_device_descriptor_heap_properties_ext.samplerHeapAlignment;
+            out->descriptor_heap_properties.value.resource_heap_alignment = properties_struct.physical_device_descriptor_heap_properties_ext.resourceHeapAlignment;
+            out->descriptor_heap_properties.value.max_sampler_heap_size = properties_struct.physical_device_descriptor_heap_properties_ext.maxSamplerHeapSize;
+            out->descriptor_heap_properties.value.max_resource_heap_size = properties_struct.physical_device_descriptor_heap_properties_ext.maxResourceHeapSize;
+            out->descriptor_heap_properties.value.min_sampler_heap_reserved_range = properties_struct.physical_device_descriptor_heap_properties_ext.minSamplerHeapReservedRange;
+            out->descriptor_heap_properties.value.min_sampler_heap_reserved_range_with_embedded = properties_struct.physical_device_descriptor_heap_properties_ext.minSamplerHeapReservedRangeWithEmbedded;
+            out->descriptor_heap_properties.value.min_resource_heap_reserved_range = properties_struct.physical_device_descriptor_heap_properties_ext.minResourceHeapReservedRange;
+            out->descriptor_heap_properties.value.sampler_descriptor_size = properties_struct.physical_device_descriptor_heap_properties_ext.samplerDescriptorSize;
+            out->descriptor_heap_properties.value.image_descriptor_size = properties_struct.physical_device_descriptor_heap_properties_ext.imageDescriptorSize;
+            out->descriptor_heap_properties.value.buffer_descriptor_size = properties_struct.physical_device_descriptor_heap_properties_ext.bufferDescriptorSize;
+            out->descriptor_heap_properties.value.sampler_descriptor_alignment = properties_struct.physical_device_descriptor_heap_properties_ext.samplerDescriptorAlignment;
+            out->descriptor_heap_properties.value.image_descriptor_alignment = properties_struct.physical_device_descriptor_heap_properties_ext.imageDescriptorAlignment;
+            out->descriptor_heap_properties.value.buffer_descriptor_alignment = properties_struct.physical_device_descriptor_heap_properties_ext.bufferDescriptorAlignment;
+            out->descriptor_heap_properties.value.max_push_data_size = properties_struct.physical_device_descriptor_heap_properties_ext.maxPushDataSize;
+            out->descriptor_heap_properties.value.image_capture_replay_opaque_data_size = properties_struct.physical_device_descriptor_heap_properties_ext.imageCaptureReplayOpaqueDataSize;
+            out->descriptor_heap_properties.value.max_descriptor_heap_embedded_samplers = properties_struct.physical_device_descriptor_heap_properties_ext.maxDescriptorHeapEmbeddedSamplers;
+            out->descriptor_heap_properties.value.sampler_ycbcr_conversion_count = properties_struct.physical_device_descriptor_heap_properties_ext.samplerYcbcrConversionCount;
+            out->descriptor_heap_properties.value.sparse_descriptor_heaps = static_cast<daxa_Bool8>(properties_struct.physical_device_descriptor_heap_properties_ext.sparseDescriptorHeaps);
+            out->descriptor_heap_properties.value.protected_descriptor_heaps = static_cast<daxa_Bool8>(properties_struct.physical_device_descriptor_heap_properties_ext.protectedDescriptorHeaps);
         }
 
         out->required_subgroup_size_stages = properties_struct.physical_device_subgroup_size_control_properties.requiredSubgroupSizeStages;

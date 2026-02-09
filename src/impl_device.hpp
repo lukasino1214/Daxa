@@ -68,6 +68,14 @@ struct daxa_ImplDevice final : public ImplHandle
     PFN_vkCopyMemoryToImageEXT vkCopyMemoryToImageEXT = {};
     PFN_vkCopyImageToMemoryEXT vkCopyImageToMemoryEXT = {};
 
+    // Descriptor heap:
+    PFN_vkWriteSamplerDescriptorsEXT vkWriteSamplerDescriptorsEXT = {};
+    PFN_vkWriteResourceDescriptorsEXT vkWriteResourceDescriptorsEXT = {};
+    PFN_vkCmdBindSamplerHeapEXT vkCmdBindSamplerHeapEXT = {};
+    PFN_vkCmdBindResourceHeapEXT vkCmdBindResourceHeapEXT = {};
+    PFN_vkCmdPushDataEXT vkCmdPushDataEXT = {};
+    PFN_vkGetPhysicalDeviceDescriptorSizeEXT vkGetPhysicalDeviceDescriptorSizeEXT = {};
+
     VkBuffer buffer_device_address_buffer = {};
     u64 * buffer_device_address_buffer_host_ptr = {};
     VmaAllocation buffer_device_address_buffer_allocation = {};
@@ -78,9 +86,13 @@ struct daxa_ImplDevice final : public ImplHandle
     // So instead of leaving dead descriptors dangle, daxa overwrites them with 'null' descriptors that just contain some debug value (pink 0xFF00FFFF).
     // This in particular prevents device hang in the case of a use after free if the device does not encounter a race condition on the descriptor update before.
     VkBuffer vk_null_buffer = {};
+    VkDeviceAddress vk_null_buffer_device_address = {};
     VkImage vk_null_image = {};
     VkImageView vk_null_image_view = {};
+    VkImageViewCreateInfo vk_null_image_view_create_info = {};
     VkSampler vk_null_sampler = {};
+    VkSamplerReductionModeCreateInfo vk_null_sampler_reduction_mode_create_info = {};
+    VkSamplerCreateInfo vk_null_sampler_create_info = {};
     VmaAllocation vk_null_buffer_vma_allocation = {};
     VmaAllocation vk_null_image_vma_allocation = {};
 
