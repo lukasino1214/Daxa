@@ -111,8 +111,7 @@ namespace tests
                             ", Invocation Reordering mode: " << invocation_reorder_mode  << std::endl;
 
                 swapchain = device.create_swapchain({
-                    .native_window = get_native_handle(),
-                    .native_window_platform = get_native_platform(),
+                    .native_window_info = get_native_window_info(),
                     .surface_format_selector = [](daxa::Format format, daxa::ColorSpace colorspace) -> i32
                     {
                         if (format == daxa::Format::B8G8R8A8_UNORM)

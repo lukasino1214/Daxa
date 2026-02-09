@@ -3,26 +3,41 @@
 #include <GLFW/glfw3.h>
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
+#define GLFW_NATIVE_INCLUDE_NONE
+using HWND = void *;
 #elif defined(__linux__)
 #define GLFW_EXPOSE_NATIVE_X11
+#define GLFW_EXPOSE_NATIVE_WAYLAND
 #endif
 #include <GLFW/glfw3native.h>
 
-auto get_native_handle(GLFWwindow * glfw_window_ptr) -> daxa::NativeWindowHandle
+auto get_native_window_info(GLFWwindow * glfw_window_ptr) -> daxa::NativeWindowInfo
 {
 #if defined(_WIN32)
-    return glfwGetWin32Window(glfw_window_ptr);
+    return daxa::NativeWindowInfoWin32{
+        .hwnd = glfwGetWin32Window(glfw_window_ptr),
+    };
 #elif defined(__linux__)
-    return reinterpret_cast<daxa::NativeWindowHandle>(glfwGetX11Window(glfw_window_ptr));
-#endif
-}
-
-auto get_native_platform(GLFWwindow * /*unused*/) -> daxa::NativeWindowPlatform
-{
-#if defined(_WIN32)
-    return daxa::NativeWindowPlatform::WIN32_API;
-#elif defined(__linux__)
-    return daxa::NativeWindowPlatform::XLIB_API;
+    switch (glfwGetPlatform())
+    {
+    case GLFW_PLATFORM_WAYLAND:
+    {
+        int width = 0;
+        int height = 0;
+        glfwGetFramebufferSize(glfw_window_ptr, &width, &height);
+        return daxa::NativeWindowInfoWayland{
+            .display = glfwGetWaylandDisplay(),
+            .surface = glfwGetWaylandWindow(glfw_window_ptr),
+            .width = static_cast<daxa::u32>(width < 0 ? 0 : width),
+            .height = static_cast<daxa::u32>(height < 0 ? 0 : height),
+        };
+    }
+    case GLFW_PLATFORM_X11:
+    default:
+        return daxa::NativeWindowInfoXlib{
+            .window = reinterpret_cast<void *>(glfwGetX11Window(glfw_window_ptr)),
+        };
+    }
 #endif
 }
 
@@ -52,8 +67,7 @@ auto main() -> int
             info.width = static_cast<daxa::u32>(width);
             info.height = static_cast<daxa::u32>(height);
         });
-    auto * native_window_handle = get_native_handle(glfw_window_ptr);
-    auto native_window_platform = get_native_platform(glfw_window_ptr);
+    auto native_window_info = get_native_window_info(glfw_window_ptr);
 
     // First thing we do is create a Daxa instance. This essentially exists
     // to initialize the Vulkan instance, and allows for the creation of multiple
@@ -121,16 +135,13 @@ auto main() -> int
     // auto device = instance.create_device_2(instance.choose_device(required_implicit_features, device_info));
 
     // To be able to render to a window, Daxa requires the user to create a swapchain
-    // for a system window. To create a Swapchain, Daxa needs a native window handle
-    // and native platform. Optionally, the user can provide a debug name, surface
+    // for a system window. To create a Swapchain, Daxa needs native window info.
+    // Optionally, the user can provide a debug name, surface
     // format type selector, the additional image uses (image uses will be explained later),
     // and present mode (this controls sync)
     daxa::Swapchain swapchain = device.create_swapchain({
-        // this handle is given by the windowing API
-        .native_window = native_window_handle,
-        // The platform would also be retrieved from the windowing API,
-        // or by hard-coding it depending on the OS.
-        .native_window_platform = native_window_platform,
+        // native window info is given by the windowing API
+        .native_window_info = native_window_info,
         .surface_format_selector = [](daxa::Format format, daxa::ColorSpace colorspace)
         {
             switch (format)
